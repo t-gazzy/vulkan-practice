@@ -1,7 +1,6 @@
 use ash::{
     vk::{
-        self, DebugUtilsMessageSeverityFlagsEXT, ExtensionProperties,
-        PFN_vkEnumerateInstanceExtensionProperties, PhysicalDeviceProperties, StructureType,
+        self, ExtensionProperties, Result
     },
     Entry, Instance,
 };
@@ -9,7 +8,6 @@ use ash::{
 mod glfw_handler;
 
 extern crate glfw;
-use glfw::{Action, Context, Key};
 use std::{
     borrow::Borrow,
     boxed::{self, Box},
@@ -39,7 +37,12 @@ fn main() {
         Err(e) => panic!("failed to create instance. :{}", e),
     };
 
+    create_window_surface(&entry, &instance);
+
     println!("Hello, world!: {}", app_info.application_version);
+
+    let device = create_physical_device(&instance).unwrap();
+    create_logical_device(&instance, device.borrow());
 
     let mut gl = Box::new(GLFWHandler::new(300, 300, "test"));
     gl.run();
@@ -83,7 +86,19 @@ fn create_logical_device(instance: &Instance, device: &vk::PhysicalDevice) {
         ..Default::default()
     };
     let result = match unsafe { Instance::create_device(instance, *device, &create_info, None) } {
-        Ok(Instance) => instance,
+        Ok(instance) => instance,
         Err(e) => panic!("error occured: {}", e)
+    };
+}
+
+// make window surface
+fn create_window_surface(entry: &Entry, instance: &Instance) {
+    let surface = ash::extensions::mvk::MacOSSurface::new(entry, instance);
+    let surface_info = vk::MacOSSurfaceCreateInfoMVK {
+        ..Default::default()
+    };
+    let result = match unsafe { ash::extensions::mvk::MacOSSurface::create_mac_os_surface(&surface, &surface_info, None)  } {
+        Ok(surface_khr) => surface_khr,
+        Err(e) => panic!("Error occured: {}", e)
     };
 }
