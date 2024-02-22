@@ -24,13 +24,18 @@ pub mod ash_handler {
 
     impl GraphisHandler for AshHandler {
         fn new() -> Self {
-            let entry = Entry::linked();
+            let entry = match unsafe { Entry::load() } {
+                Ok(entry) => entry,
+                Err(e) => panic!("load failed: {}", e),
+            };
+
             let app_info = vk::ApplicationInfo {
-                api_version: vk::make_api_version(0, 1, 3, 0),
+                api_version: vk::make_api_version(0, 1, 2, 0),
                 ..Default::default()
             };
             let create_info = vk::InstanceCreateInfo {
                 p_application_info: &app_info,
+                flags: vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR,
                 ..Default::default()
             };
 
@@ -111,7 +116,7 @@ pub mod ash_handler {
                 Err(e) => panic!("error occured in creating device: {}", e),
             };
 
-            // Using variable for `for` statement make it move 
+            // Using variable for `for` statement make it move
             for p_device in &physical_devices {
                 let queues =
                     unsafe { instance.get_physical_device_queue_family_properties(*p_device) };
@@ -134,23 +139,27 @@ pub mod ash_handler {
                     println!("Queue Count: {}, Graphic Support: {}, Compute Support: {}, Transfer Support: {}", q.queue_count, is_graphics_support, is_compute_support, is_transfer_support);
                 }
             }
-            
+
             let device = physical_devices.iter().find(|device| unsafe {
                 instance
                     .get_physical_device_queue_family_properties(**device)
                     .iter()
-                    .find(|queue| queue.queue_flags == vk::QueueFlags::GRAPHICS).is_some()
+                    .find(|queue| queue.queue_flags == vk::QueueFlags::GRAPHICS)
+                    .is_some()
             });
 
             return match device {
                 Some(d) => d.clone(),
-                None => panic!("Error occurred: No matching physical device.")
+                None => panic!("Error occurred: No matching physical device."),
             };
         }
 
         // create a logical device
         // logical device = virtual memory supplyed by the OS
-        fn make_logical_device(instance: &Instance, physical_device: vk::PhysicalDevice) -> ash::Device {
+        fn make_logical_device(
+            instance: &Instance,
+            physical_device: vk::PhysicalDevice,
+        ) -> ash::Device {
             let create_info = vk::DeviceCreateInfo {
                 ..Default::default()
             };

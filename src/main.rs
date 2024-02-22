@@ -1,20 +1,10 @@
-use ash::{
-    vk::{
-        self, ExtensionProperties, Result
-    },
-    Entry, Instance,
-};
 use ash_handler::ash_handler::{AshHandler, GraphisHandler};
 
-mod glfw_handler;
 mod ash_handler;
+mod glfw_handler;
 
 extern crate glfw;
-use std::{
-    borrow::Borrow,
-    boxed::{self, Box},
-    ffi::c_char,
-};
+use std::boxed::Box;
 
 use crate::glfw_handler::handler::{GLFWHandler, GLHandler};
 
