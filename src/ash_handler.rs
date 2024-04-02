@@ -1,11 +1,10 @@
 extern crate ash;
 
 pub mod ash_handler {
-    use std::borrow::Borrow;
 
     use ash::{
         extensions,
-        vk::{self, SurfaceKHR},
+        vk::{self, MacOSSurfaceCreateInfoMVK, StructureType, SurfaceKHR},
         Entry, Instance,
     };
 
@@ -46,10 +45,13 @@ pub mod ash_handler {
                 Err(e) => panic!("failed to create instance. :{}", e),
             };
 
+            println!("[App] instance created: {:p}", &instance);
+
             let surface = <AshHandler as private::Sealed>::make_surface(&entry, &instance);
 
             let physical_device = <AshHandler as private::Sealed>::make_physical_device(&instance);
 
+            println!("[App] physical device created: {:p}", &physical_device);
             // create a logical device
             // logical device = virtual memory supplyed by the OS
             let create_info = vk::DeviceCreateInfo {
@@ -90,12 +92,13 @@ pub mod ash_handler {
     impl private::Sealed for AshHandler {
         // create window surface
         fn make_surface(entry: &Entry, instance: &Instance) -> vk::SurfaceKHR {
-            let surface = ash::extensions::mvk::MacOSSurface::new(entry, instance);
-            let surface_info = vk::MacOSSurfaceCreateInfoMVK {
+            let surface = ash::extensions::ext::MetalSurface::new(entry, instance);
+            let surface_info = vk::MetalSurfaceCreateInfoEXT {
+                s_type: StructureType::METAL_SURFACE_CREATE_INFO_EXT,
                 ..Default::default()
             };
             return match unsafe {
-                ash::extensions::mvk::MacOSSurface::create_mac_os_surface(
+                ash::extensions::ext::MetalSurface::create_metal_surface(
                     &surface,
                     &surface_info,
                     None,
@@ -116,42 +119,60 @@ pub mod ash_handler {
                 Err(e) => panic!("error occured in creating device: {}", e),
             };
 
-            // Using variable for `for` statement make it move
-            for p_device in &physical_devices {
-                let queues =
-                    unsafe { instance.get_physical_device_queue_family_properties(*p_device) };
-                for q in queues {
-                    let is_graphics_support = if q.queue_flags == vk::QueueFlags::GRAPHICS {
-                        "OK"
-                    } else {
-                        "NG"
-                    };
-                    let is_compute_support = if q.queue_flags == vk::QueueFlags::COMPUTE {
-                        "OK"
-                    } else {
-                        "NG"
-                    };
-                    let is_transfer_support = if q.queue_flags == vk::QueueFlags::TRANSFER {
-                        "OK"
-                    } else {
-                        "NG"
-                    };
-                    println!("Queue Count: {}, Graphic Support: {}, Compute Support: {}, Transfer Support: {}", q.queue_count, is_graphics_support, is_compute_support, is_transfer_support);
-                }
-            }
-
-            let device = physical_devices.iter().find(|device| unsafe {
-                instance
-                    .get_physical_device_queue_family_properties(**device)
+            if physical_devices.capacity() == 1 {
+                println!("devices count: {}", physical_devices.capacity());
+                let queues = unsafe {
+                    instance.get_physical_device_queue_family_properties(
+                        *physical_devices.first().unwrap(),
+                    )
+                };
+                println!("queues count: {}", queues.capacity());
+                let q_prop = queues
                     .iter()
-                    .find(|queue| queue.queue_flags == vk::QueueFlags::GRAPHICS)
-                    .is_some()
-            });
+                    .find(|queue| queue.queue_flags == vk::QueueFlags::GRAPHICS);
 
-            return match device {
-                Some(d) => d.clone(),
-                None => panic!("Error occurred: No matching physical device."),
-            };
+                return match q_prop {
+                    Some(_) => *physical_devices.first().unwrap(),
+                    None => panic!("Error occurred: No matching physical device."),
+                };
+            } else {
+                // Using variable for `for` statement make it move
+                for p_device in &physical_devices {
+                    let queues =
+                        unsafe { instance.get_physical_device_queue_family_properties(*p_device) };
+                    for q in queues {
+                        let is_graphics_support = if q.queue_flags == vk::QueueFlags::GRAPHICS {
+                            "OK"
+                        } else {
+                            "NG"
+                        };
+                        let is_compute_support = if q.queue_flags == vk::QueueFlags::COMPUTE {
+                            "OK"
+                        } else {
+                            "NG"
+                        };
+                        let is_transfer_support = if q.queue_flags == vk::QueueFlags::TRANSFER {
+                            "OK"
+                        } else {
+                            "NG"
+                        };
+                        println!("Queue Count: {}, Graphic Support: {}, Compute Support: {}, Transfer Support: {}", q.queue_count, is_graphics_support, is_compute_support, is_transfer_support);
+                    }
+                }
+
+                let device = physical_devices.iter().find(|device| unsafe {
+                    instance
+                        .get_physical_device_queue_family_properties(**device)
+                        .iter()
+                        .find(|queue| queue.queue_flags == vk::QueueFlags::GRAPHICS)
+                        .is_some()
+                });
+
+                return match device {
+                    Some(d) => d.clone(),
+                    None => panic!("Error occurred: No matching physical device."),
+                };
+            }
         }
 
         // create a logical device
